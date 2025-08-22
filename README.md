@@ -1,6 +1,6 @@
 # GuerrillaMailClient C# Example
 
-This is a simple example showing how to use the `GuerrillaMailClient` library in C# to create temporary email addresses, read emails, delete them.
+This is a simple example showing how to use the `GuerrillaMailClient` library in C# to create temporary email addresses, read emails, delete them, and optionally set a custom username.
 
 ## Example Usage
 
@@ -14,6 +14,17 @@ static async Task Main()
     var emailInfo = await client.GetEmailAddressAsync();
     Console.WriteLine($"Your temp email: {emailInfo?.EmailAddr}");
 
+    // 1a. Try to set a custom username
+    try
+    {
+        var newEmail = await client.SetEmailUserAsync("mydesiredname", throwIfMismatch: true);
+        Console.WriteLine($"Assigned email after username change: {newEmail?.EmailAddr}");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.WriteLine($"Could not set desired username: {ex.Message}");
+    }
+
     // 2. Check for new emails (polling)
     var inbox = await client.CheckEmailAsync();
     Console.WriteLine($"You have {inbox?.Count} emails");
@@ -23,11 +34,13 @@ static async Task Main()
         Console.WriteLine($"New email from: {email.From}");
         Console.WriteLine($"Subject: {email.Subject}");
 
-        // 4. Fetch full email content
+        // 3. Fetch full email content
         var fullEmail = await client.FetchEmailAsync(email.Id);
         Console.WriteLine("--- Email Body ---");
         Console.WriteLine(fullEmail?.Body);
     }
+
+    // 4. Delete all emails in inbox
     var response = await client.DeleteEmailAsync(inbox.Emails.Select(x => x.Id));
     Console.WriteLine($"Deleted IDs: {string.Join(',', response.DeletedIds)}");
 
@@ -40,12 +53,15 @@ static async Task Main()
 ## Features Demonstrated
 
 1. **Create/Get a temporary email address**  
-2. **Check inbox for new emails**  
-3. **Fetch full email content**  
-4. **Delete emails**  
-5. **Extend the life of your temp email**  
+2. **Optionally set a custom username for the email**  
+3. **Check inbox for new emails**  
+4. **Fetch full email content**  
+5. **Delete emails**  
+6. **Extend the life of your temp email**  
 
 ## Notes
 
 - Ensure your IP and User-Agent are set correctly.
 - Polling too frequently may hit API limits.
+- Username change may fail if the desired name is already taken; `throwIfMismatch` controls behavior.
+

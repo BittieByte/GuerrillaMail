@@ -78,6 +78,36 @@ namespace GuerrillaMail
         public Task<GetEmailAddressResponse?> GetEmailAddressAsync(string lang = "en", string? subscr = null) =>
             CallAsync<GetEmailAddressResponse>("get_email_address", new Dictionary<string, string> { { "lang", lang } });
 
+
+        /// <summary>
+        /// Attempt to set a custom username for the temporary email.
+        /// Note: You cannot choose the domain; Guerrilla Mail will assign it automatically from their pool.
+        /// If the username is taken, the API may assign a different one.
+        /// </summary>
+        /// <param name="emailUser">The desired username part of the email (before the @)</param>
+        /// <param name="lang">Language code (default "en")</param>
+        /// <param name="throwIfMismatch">Whether to throw an exception if the returned email does not start with the requested username</param>
+        /// <returns>Returns the resulting email address info, including the assigned domain and subscription status.</returns>
+        public async Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en", bool throwIfMismatch = false)
+        {
+            if (string.IsNullOrWhiteSpace(emailUser))
+                throw new ArgumentException("Username cannot be empty", nameof(emailUser));
+
+            var args = new Dictionary<string, string>
+            {
+                { "email_user", emailUser.Trim() },
+                { "lang", lang }
+            };
+
+            var result = await CallAsync<GetEmailAddressResponse>("set_email_user", args);
+            if (!result.EmailAddr.StartsWith(emailUser, StringComparison.OrdinalIgnoreCase))
+            {
+                if (throwIfMismatch)
+                    throw new InvalidOperationException($"Requested username '{emailUser}' was not available. Assigned email: {result.EmailAddr}");
+            }
+            return result;
+        }
+
         /// <summary>
         /// Sets the username for the temporary email address.
         /// </summary>
