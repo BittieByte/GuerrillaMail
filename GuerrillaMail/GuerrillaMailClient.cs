@@ -43,6 +43,7 @@ namespace GuerrillaMail
         /// <typeparam name="T">Type of the expected response object.</typeparam>
         /// <param name="function">API function name.</param>
         /// <param name="args">Optional query arguments.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>The deserialized response object.</returns>
         /// <exception cref="InvalidOperationException">Thrown if API returns non-JSON response.</exception>
         private async Task<T?> CallAsync<T>(string function, Dictionary<string, string>? args = null, CancellationToken cancellationToken = default)
@@ -75,6 +76,7 @@ namespace GuerrillaMail
         /// </summary>
         /// <param name="lang">Optional language code (default "en").</param>
         /// <param name="subscr">Optional subscription ID.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>The email address info.</returns>
         public Task<GetEmailAddressResponse?> GetEmailAddressAsync(string lang = "en", string? subscr = null, CancellationToken cancellationToken = default) =>
             CallAsync<GetEmailAddressResponse>("get_email_address", new Dictionary<string, string> { { "lang", lang } }, cancellationToken);
@@ -88,6 +90,7 @@ namespace GuerrillaMail
         /// <param name="emailUser">The desired username part of the email (before the @)</param>
         /// <param name="lang">Language code (default "en")</param>
         /// <param name="throwIfMismatch">Whether to throw an exception if the returned email does not start with the requested username</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>Returns the resulting email address info, including the assigned domain and subscription status.</returns>
         public async Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en", bool throwIfMismatch = false, CancellationToken cancellationToken = default)
         {
@@ -114,6 +117,7 @@ namespace GuerrillaMail
         /// </summary>
         /// <param name="emailUser">The desired email username.</param>
         /// <param name="lang">Optional language code.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>The updated email address info.</returns>
         public Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en", CancellationToken cancellationToken = default) =>
             CallAsync<GetEmailAddressResponse>("set_email_user", new Dictionary<string, string> { { "email_user", emailUser }, { "lang", lang } }, cancellationToken);
@@ -122,6 +126,7 @@ namespace GuerrillaMail
         /// Checks for new emails since the given sequence number.
         /// </summary>
         /// <param name="seq">Sequence number to start checking from.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>List of emails and metadata.</returns>
         public Task<CheckEmailResponse?> CheckEmailAsync(long seq = 0, CancellationToken cancellationToken = default) =>
             CallAsync<CheckEmailResponse>("check_email", new Dictionary<string, string> { { "seq", seq.ToString() } }, cancellationToken);
@@ -140,6 +145,7 @@ namespace GuerrillaMail
         /// Fetches the full content of a single email.
         /// </summary>
         /// <param name="emailId">ID of the email to fetch.</param>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>The email message.</returns>
         public Task<EmailMessage?> FetchEmailAsync(long emailId, CancellationToken cancellationToken = default) =>
             CallAsync<EmailMessage>("fetch_email", new Dictionary<string, string> { { "email_id", emailId.ToString() } }, cancellationToken);
