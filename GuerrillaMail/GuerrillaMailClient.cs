@@ -1,8 +1,12 @@
 ﻿using System.Net;
+using System.Text;
 using System.Text.Json;
 
 namespace GuerrillaMail
 {
+    /// <summary>
+    /// Client for interacting with GuerrillaMail temporary email API.
+    /// </summary>
     public class GuerrillaMailClient
     {
         private const string BaseUrl = "http://api.guerrillamail.com/ajax.php";
@@ -11,6 +15,11 @@ namespace GuerrillaMail
         private readonly string _ip;
         private readonly string _agent;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="GuerrillaMailClient"/> class.
+        /// </summary>
+        /// <param name="ip">Optional IP address to use for the API.</param>
+        /// <param name="agent">User-Agent string to identify the client.</param>
         public GuerrillaMailClient(string ip, string agent)
         {
             _ip = ip;
@@ -19,18 +28,23 @@ namespace GuerrillaMail
             var handler = new HttpClientHandler
             {
                 CookieContainer = _cookies,
-                UseCookies = true
+                UseCookies = true,
+                AutomaticDecompression = DecompressionMethods.All
             };
 
             _http = new HttpClient(handler);
         }
 
-        private static readonly JsonSerializerOptions JsonOptions = new()
-        {
-            PropertyNameCaseInsensitive = true,
-            NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
-        };
+        private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString };
 
+        /// <summary>
+        /// Sends a request to the GuerrillaMail API and deserializes the JSON response.
+        /// </summary>
+        /// <typeparam name="T">Type of the expected response object.</typeparam>
+        /// <param name="function">API function name.</param>
+        /// <param name="args">Optional query arguments.</param>
+        /// <returns>The deserialized response object.</returns>
+        /// <exception cref="InvalidOperationException">Thrown if API returns non-JSON response.</exception>
         private async Task<T?> CallAsync<T>(string function, Dictionary<string, string>? args = null)
         {
             args ??= [];
@@ -43,46 +57,47 @@ namespace GuerrillaMail
             response.EnsureSuccessStatusCode();
 
             var raw = await response.Content.ReadAsStringAsync();
-
-            // If the response starts with { or [, treat it as JSON
             raw = raw.Trim();
             if (raw.StartsWith('{') || raw.StartsWith('['))
             {
-                using var doc = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(raw));
+                using var doc = new MemoryStream(Encoding.UTF8.GetBytes(raw));
                 return await JsonSerializer.DeserializeAsync<T>(doc, JsonOptions);
             }
             else
             {
-                // Log or throw a descriptive exception
                 throw new InvalidOperationException($"GuerrillaMail API returned non-JSON response: {raw}");
             }
         }
 
-        // ---- API Methods ----
+        /// <summary>
+        /// Gets or creates a temporary email address.
+        /// </summary>
+        /// <param name="lang">Optional language code (default "en").</param>
+        /// <param name="subscr">Optional subscription ID.</param>
+        /// <returns>The email address info.</returns>
+        public Task<GetEmailAddressResponse?> GetEmailAddressAsync(string lang = "en", string? subscr = null) =>
+            CallAsync<GetEmailAddressResponse>("get_email_address", new Dictionary<string, string> { { "lang", lang } });
 
-        public Task<GetEmailAddressResponse?> GetEmailAddressAsync(string lang = "en", string? subscr = null)
-        {
-            var args = new Dictionary<string, string> { { "lang", lang } };
-            if (!string.IsNullOrEmpty(subscr)) args["SUBSCR"] = subscr;
-            return CallAsync<GetEmailAddressResponse>("get_email_address", args);
-        }
+        /// <summary>
+        /// Sets the username for the temporary email address.
+        /// </summary>
+        /// <param name="emailUser">The desired email username.</param>
+        /// <param name="lang">Optional language code.</param>
+        /// <returns>The updated email address info.</returns>
+        public Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en") =>
+            CallAsync<GetEmailAddressResponse>("set_email_user", new Dictionary<string, string> { { "email_user", emailUser }, { "lang", lang } });
 
-        public Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en")
-        {
-            var args = new Dictionary<string, string>
-            {
-                { "email_user", emailUser },
-                { "lang", lang }
-            };
-            return CallAsync<GetEmailAddressResponse>("set_email_user", args);
-        }
+        /// <summary>
+        /// Checks for new emails since the given sequence number.
+        /// </summary>
+        /// <param name="seq">Sequence number to start checking from.</param>
+        /// <returns>List of emails and metadata.</returns>
+        public Task<CheckEmailResponse?> CheckEmailAsync(long seq = 0) =>
+            CallAsync<CheckEmailResponse>("check_email", new Dictionary<string, string> { { "seq", seq.ToString() } });
 
-        public Task<CheckEmailResponse?> CheckEmailAsync(long seq = 0)
-        {
-            var args = new Dictionary<string, string> { { "seq", seq.ToString() } };
-            return CallAsync<CheckEmailResponse>("check_email", args);
-        }
-
+        /// <summary>
+        /// Retrieves a list of emails with optional offset and sequence.
+        /// </summary>
         public Task<CheckEmailResponse?> GetEmailListAsync(int offset = 0, long? seq = null)
         {
             var args = new Dictionary<string, string> { { "offset", offset.ToString() } };
@@ -90,24 +105,23 @@ namespace GuerrillaMail
             return CallAsync<CheckEmailResponse>("get_email_list", args);
         }
 
-        public Task<EmailMessage?> FetchEmailAsync(long emailId)
-        {
-            var args = new Dictionary<string, string> { { "email_id", emailId.ToString() } };
-            return CallAsync<EmailMessage>("fetch_email", args);
-        }
+        /// <summary>
+        /// Fetches the full content of a single email.
+        /// </summary>
+        /// <param name="emailId">ID of the email to fetch.</param>
+        /// <returns>The email message.</returns>
+        public Task<EmailMessage?> FetchEmailAsync(long emailId) =>
+            CallAsync<EmailMessage>("fetch_email", new Dictionary<string, string> { { "email_id", emailId.ToString() } });
 
-        public Task<ForgetMeResponse?> ForgetMeAsync(string emailAddr)
-        {
-            var args = new Dictionary<string, string> { { "email_addr", emailAddr } };
-            return CallAsync<ForgetMeResponse>("forget_me", args);
-        }
+        /// <summary>
+        /// Deletes a single email by ID.
+        /// </summary>
+        public Task<DeleteEmailResponse?> DeleteEmailAsync(long emailId) =>
+            DeleteEmailAsync([emailId]);
 
-        public Task<DeleteEmailResponse?> DeleteEmailAsync(long emailId)
-        {
-            // Call the existing batch method with a single-element array
-            return DeleteEmailAsync([emailId]);
-        }
-
+        /// <summary>
+        /// Deletes multiple emails by their IDs.
+        /// </summary>
         public Task<DeleteEmailResponse?> DeleteEmailAsync(IEnumerable<long> emailIds)
         {
             var args = new Dictionary<string, string>();
@@ -119,9 +133,10 @@ namespace GuerrillaMail
             return CallAsync<DeleteEmailResponse>("del_email", args);
         }
 
-        public Task<ExtendResponse?> ExtendAsync()
-        {
-            return CallAsync<ExtendResponse>("extend");
-        }
+        /// <summary>
+        /// Extends the life of the temporary email by 1 hour.
+        /// </summary>
+        /// <returns>Extension response metadata.</returns>
+        public Task<ExtendResponse?> ExtendAsync() => CallAsync<ExtendResponse>("extend");
     }
 }
