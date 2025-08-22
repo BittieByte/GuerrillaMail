@@ -45,7 +45,7 @@ namespace GuerrillaMail
         /// <param name="args">Optional query arguments.</param>
         /// <returns>The deserialized response object.</returns>
         /// <exception cref="InvalidOperationException">Thrown if API returns non-JSON response.</exception>
-        private async Task<T?> CallAsync<T>(string function, Dictionary<string, string>? args = null)
+        private async Task<T?> CallAsync<T>(string function, Dictionary<string, string>? args = null, CancellationToken cancellationToken = default)
         {
             args ??= [];
             args["f"] = function;
@@ -53,15 +53,16 @@ namespace GuerrillaMail
             args["agent"] = _agent;
 
             var url = QueryHelpers.AddQueryString(BaseUrl, args);
-            var response = await _http.GetAsync(url);
+            using var response = await _http.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
 
-            var raw = await response.Content.ReadAsStringAsync();
+            var raw = await response.Content.ReadAsStringAsync(cancellationToken);
             raw = raw.Trim();
             if (raw.StartsWith('{') || raw.StartsWith('['))
             {
                 using var doc = new MemoryStream(Encoding.UTF8.GetBytes(raw));
-                return await JsonSerializer.DeserializeAsync<T>(doc, JsonOptions);
+                // would use stream but doing preprocessing
+                return await JsonSerializer.DeserializeAsync<T>(doc, JsonOptions, cancellationToken);
             }
             else
             {
@@ -75,8 +76,8 @@ namespace GuerrillaMail
         /// <param name="lang">Optional language code (default "en").</param>
         /// <param name="subscr">Optional subscription ID.</param>
         /// <returns>The email address info.</returns>
-        public Task<GetEmailAddressResponse?> GetEmailAddressAsync(string lang = "en", string? subscr = null) =>
-            CallAsync<GetEmailAddressResponse>("get_email_address", new Dictionary<string, string> { { "lang", lang } });
+        public Task<GetEmailAddressResponse?> GetEmailAddressAsync(string lang = "en", string? subscr = null, CancellationToken cancellationToken = default) =>
+            CallAsync<GetEmailAddressResponse>("get_email_address", new Dictionary<string, string> { { "lang", lang } }, cancellationToken);
 
 
         /// <summary>
@@ -88,7 +89,7 @@ namespace GuerrillaMail
         /// <param name="lang">Language code (default "en")</param>
         /// <param name="throwIfMismatch">Whether to throw an exception if the returned email does not start with the requested username</param>
         /// <returns>Returns the resulting email address info, including the assigned domain and subscription status.</returns>
-        public async Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en", bool throwIfMismatch = false)
+        public async Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en", bool throwIfMismatch = false, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(emailUser))
                 throw new ArgumentException("Username cannot be empty", nameof(emailUser));
@@ -99,7 +100,7 @@ namespace GuerrillaMail
                 { "lang", lang }
             };
 
-            var result = await CallAsync<GetEmailAddressResponse>("set_email_user", args);
+            var result = await CallAsync<GetEmailAddressResponse>("set_email_user", args, cancellationToken);
             if (!result.EmailAddr.StartsWith(emailUser, StringComparison.OrdinalIgnoreCase))
             {
                 if (throwIfMismatch)
@@ -114,25 +115,25 @@ namespace GuerrillaMail
         /// <param name="emailUser">The desired email username.</param>
         /// <param name="lang">Optional language code.</param>
         /// <returns>The updated email address info.</returns>
-        public Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en") =>
-            CallAsync<GetEmailAddressResponse>("set_email_user", new Dictionary<string, string> { { "email_user", emailUser }, { "lang", lang } });
+        public Task<GetEmailAddressResponse?> SetEmailUserAsync(string emailUser, string lang = "en", CancellationToken cancellationToken = default) =>
+            CallAsync<GetEmailAddressResponse>("set_email_user", new Dictionary<string, string> { { "email_user", emailUser }, { "lang", lang } }, cancellationToken);
 
         /// <summary>
         /// Checks for new emails since the given sequence number.
         /// </summary>
         /// <param name="seq">Sequence number to start checking from.</param>
         /// <returns>List of emails and metadata.</returns>
-        public Task<CheckEmailResponse?> CheckEmailAsync(long seq = 0) =>
-            CallAsync<CheckEmailResponse>("check_email", new Dictionary<string, string> { { "seq", seq.ToString() } });
+        public Task<CheckEmailResponse?> CheckEmailAsync(long seq = 0, CancellationToken cancellationToken = default) =>
+            CallAsync<CheckEmailResponse>("check_email", new Dictionary<string, string> { { "seq", seq.ToString() } }, cancellationToken);
 
         /// <summary>
         /// Retrieves a list of emails with optional offset and sequence.
         /// </summary>
-        public Task<CheckEmailResponse?> GetEmailListAsync(int offset = 0, long? seq = null)
+        public Task<CheckEmailResponse?> GetEmailListAsync(int offset = 0, long? seq = null, CancellationToken cancellationToken = default)
         {
             var args = new Dictionary<string, string> { { "offset", offset.ToString() } };
             if (seq.HasValue) args["seq"] = seq.Value.ToString();
-            return CallAsync<CheckEmailResponse>("get_email_list", args);
+            return CallAsync<CheckEmailResponse>("get_email_list", args, cancellationToken);
         }
 
         /// <summary>
@@ -140,19 +141,19 @@ namespace GuerrillaMail
         /// </summary>
         /// <param name="emailId">ID of the email to fetch.</param>
         /// <returns>The email message.</returns>
-        public Task<EmailMessage?> FetchEmailAsync(long emailId) =>
-            CallAsync<EmailMessage>("fetch_email", new Dictionary<string, string> { { "email_id", emailId.ToString() } });
+        public Task<EmailMessage?> FetchEmailAsync(long emailId, CancellationToken cancellationToken = default) =>
+            CallAsync<EmailMessage>("fetch_email", new Dictionary<string, string> { { "email_id", emailId.ToString() } }, cancellationToken);
 
         /// <summary>
         /// Deletes a single email by ID.
         /// </summary>
-        public Task<DeleteEmailResponse?> DeleteEmailAsync(long emailId) =>
-            DeleteEmailAsync([emailId]);
+        public Task<DeleteEmailResponse?> DeleteEmailAsync(long emailId, CancellationToken cancellationToken = default) =>
+            DeleteEmailAsync([emailId], cancellationToken);
 
         /// <summary>
         /// Deletes multiple emails by their IDs.
         /// </summary>
-        public Task<DeleteEmailResponse?> DeleteEmailAsync(IEnumerable<long> emailIds)
+        public Task<DeleteEmailResponse?> DeleteEmailAsync(IEnumerable<long> emailIds, CancellationToken cancellationToken = default)
         {
             var args = new Dictionary<string, string>();
             int i = 0;
@@ -160,13 +161,13 @@ namespace GuerrillaMail
             {
                 args[$"email_ids[{i++}]"] = id.ToString();
             }
-            return CallAsync<DeleteEmailResponse>("del_email", args);
+            return CallAsync<DeleteEmailResponse>("del_email", args, cancellationToken);
         }
 
         /// <summary>
         /// Extends the life of the temporary email by 1 hour.
         /// </summary>
         /// <returns>Extension response metadata.</returns>
-        public Task<ExtendResponse?> ExtendAsync() => CallAsync<ExtendResponse>("extend");
+        public Task<ExtendResponse?> ExtendAsync(CancellationToken cancellationToken = default) => CallAsync<ExtendResponse>("extend", cancellationToken: cancellationToken);
     }
 }
