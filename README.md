@@ -26,7 +26,7 @@ static async Task Main()
     }
 
     // 2. Check for new emails (polling)
-    var inbox = await client.CheckEmailAsync();
+    var inbox = await client.CheckEmailAsync(1); // Use 1 to Skip service email
     Console.WriteLine($"You have {inbox?.Count} emails");
 
     foreach (var email in inbox.Emails)
@@ -41,8 +41,11 @@ static async Task Main()
     }
 
     // 4. Delete all emails in inbox
-    var response = await client.DeleteEmailAsync(inbox.Emails.Select(x => x.Id));
-    Console.WriteLine($"Deleted IDs: {string.Join(',', response.DeletedIds)}");
+    if(inbox.Count > 0)
+    {
+        var response = await client.DeleteEmailAsync(inbox.Emails.Select(x => x.Id));
+        Console.WriteLine($"Deleted IDs: {string.Join(',', response.DeletedIds)}");
+    }
 
     //// 5. Extend email life by 1 hour
     //var extended = await client.ExtendAsync();
