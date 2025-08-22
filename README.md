@@ -1,4 +1,7 @@
 # GuerrillaMailClient C# Example
+Website: https://www.guerrillamail.com/
+
+API Docs: https://www.guerrillamail.com/GuerrillaMailAPI.html
 
 This is a simple example showing how to use the `GuerrillaMailClient` library in C# to create temporary email addresses, read emails, delete them, and optionally set a custom username.
 
